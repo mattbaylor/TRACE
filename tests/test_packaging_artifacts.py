@@ -113,6 +113,18 @@ class TestWheelContainsRequiredFiles:
         missing = [a for a in get_expected_asset_relpaths() if a not in members]
         assert not missing, f"Adapter assets missing from the wheel (trace-mcp-init is dead on arrival): {missing}"
 
+    def test_wheel_contains_opencode_adapter_assets(self, built_dist: dict[str, Path]) -> None:
+        """The OpenCode adapter copies these at runtime (plugin + block +
+        README); a wheel without them installs no plugin and fails validate."""
+        members = get_wheel_members(built_dist["wheel"])
+        oc_dir = TRACE_ROOT / "src" / "trace_mcp" / "adapters" / "opencode" / "assets"
+        expected = sorted(
+            str(p.relative_to(TRACE_ROOT / "src")) for p in oc_dir.rglob("*") if p.is_file()
+        )
+        assert expected, f"no opencode assets found under {oc_dir}"
+        missing = [a for a in expected if a not in members]
+        assert not missing, f"OpenCode adapter assets missing from the wheel: {missing}"
+
     def test_wheel_contains_packaged_schema(self, built_dist: dict[str, Path]) -> None:
         """`trace-mcp validate` loads the schema as package data; a wheel
         without it makes the subcommand crash on installed packages."""
