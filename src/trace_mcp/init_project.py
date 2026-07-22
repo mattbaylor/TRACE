@@ -219,9 +219,9 @@ def _enroll_project(key: str, label: str) -> str:
         ) from exc
 
 
-def _write_pin_file(project_dir: Path, key: str) -> str:
-    """Write ``.claude/trace.project`` — the hooks' highest-precedence source."""
-    path = project_dir / _PIN_FILE
+def _write_pin_file(project_dir: Path, key: str, pin_dir: str = ".claude") -> str:
+    """Write ``<pin_dir>/trace.project`` — the hooks'/plugin's highest-precedence source."""
+    path = project_dir / pin_dir / "trace.project"
     existing = path.read_text(errors="replace").strip() if path.is_file() else None
     if existing == key:
         return f"  skipped: {path}"
@@ -394,15 +394,23 @@ def init_project(
 
     print(f"Initializing TRACE in {project_dir}")
 
+    # Resolve the host adapter first: it decides whether the built-in
+    # .mcp.json writer runs at all. An adapter with owns_mcp_config writes the
+    # server entry itself, so neither the source preflight nor step 2 applies.
+    adapter = _pick_adapter(project_dir, client)
+    adapter_owns_mcp = adapter is not None and getattr(adapter, "owns_mcp_config", False)
+
     # Preflight the `.mcp.json` source before ANY write. It is the one step
     # that can fail for reasons outside this directory, and discovering that
     # after enrolling the project and writing pin files would leave it half
-    # initialized.
-    try:
-        _resolve_trace_source()
-    except TraceSourceUnresolvedError as exc:
-        print(f"Error: {exc}")
-        sys.exit(1)
+    # initialized. Skipped when the adapter owns its own MCP config (no
+    # .mcp.json / uvx source is written for it).
+    if not adapter_owns_mcp:
+        try:
+            _resolve_trace_source()
+        except TraceSourceUnresolvedError as exc:
+            print(f"Error: {exc}")
+            sys.exit(1)
 
     # 1. Project identity, before anything that embeds it. Resolution is
     # read-only, so an unusable name fails before a single file is touched.
@@ -414,32 +422,40 @@ def init_project(
         sys.exit(1)
     print(f"  project: '{project_key}'" + (f" (from label '{label}')" if label != project_key else ""))
 
+    pin_dir = getattr(adapter, "pin_dir", ".claude") if adapter is not None else ".claude"
+    write_rules_pin = (
+        getattr(adapter, "writes_rules_pin_line", True) if adapter is not None else True
+    )
     try:
         if not dry_run:
             print(_enroll_project(project_key, label))
-            print(_write_pin_file(project_dir, project_key))
-            print(_write_claude_pin_line(project_dir, project_key))
+            print(_write_pin_file(project_dir, project_key, pin_dir))
+            if write_rules_pin:
+                print(_write_claude_pin_line(project_dir, project_key))
         else:
             print(f"  [dry-run] would enroll '{project_key}' in {pident.registry_path()}")
-            print(f"  [dry-run] would write: {project_dir / _PIN_FILE}")
+            print(f"  [dry-run] would write: {project_dir / pin_dir / 'trace.project'}")
     except TraceInitError as exc:
         print(f"Error: {exc}")
         sys.exit(1)
 
     # 2. .mcp.json (host-independent). A dry run resolves the source too, so
     # an unresolvable source is discovered before a real run, not during it.
-    try:
-        if not dry_run:
-            print(_write_mcp_json(project_dir, project_key))
-        else:
-            entry = _mcp_server_config(project_key)["trace"]
-            print(f"  [dry-run] would write: {project_dir / '.mcp.json'} (uvx --from {entry['args'][1]})")
-    except (TraceSourceUnresolvedError, TraceInitError) as exc:
-        print(f"Error: {exc}")
-        sys.exit(1)
+    # Skipped when the adapter owns its own MCP configuration.
+    if adapter_owns_mcp:
+        print(f"  skipped: .mcp.json ({adapter.name} adapter writes its own MCP config)")
+    else:
+        try:
+            if not dry_run:
+                print(_write_mcp_json(project_dir, project_key))
+            else:
+                entry = _mcp_server_config(project_key)["trace"]
+                print(f"  [dry-run] would write: {project_dir / '.mcp.json'} (uvx --from {entry['args'][1]})")
+        except (TraceSourceUnresolvedError, TraceInitError) as exc:
+            print(f"Error: {exc}")
+            sys.exit(1)
 
     # 3. Host adapter
-    adapter = _pick_adapter(project_dir, client)
     if adapter is None:
         print("Skipping host adapter installation.")
         return
@@ -464,7 +480,8 @@ def init_project(
             sys.exit(1)
 
     print()
-    print("TRACE is ready. Start Claude Code in this directory and the")
+    host_label = adapter.name if adapter is not None else "your MCP client"
+    print(f"TRACE is ready. Start {host_label} in this directory and the")
     print("TRACE tools will be available automatically.")
 
 

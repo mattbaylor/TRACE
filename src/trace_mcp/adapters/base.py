@@ -25,9 +25,27 @@ class Adapter(ABC):
     Subclasses must set ``name`` and implement ``detect``, ``install``, and
     ``validate``. Adapters are pure installers — they do not run at MCP
     server time and must not be imported by ``server.py``.
+
+    An adapter whose host uses a config format other than the Claude
+    ``.mcp.json`` shape sets ``owns_mcp_config = True`` and writes the MCP
+    server entry inside its own ``install``. ``trace-mcp init`` then skips its
+    built-in ``.mcp.json`` writer for that adapter, so the two do not fight
+    over where and how the server is registered.
     """
 
     name: str = ""
+    owns_mcp_config: bool = False
+
+    # Directory (relative to the project dir) where ``trace-mcp init`` writes
+    # the ``trace.project`` identity pin the host's hooks/plugin read. Claude
+    # Code uses ``.claude``; other hosts override.
+    pin_dir: str = ".claude"
+
+    # Whether ``trace-mcp init`` should also write a machine-parseable pin line
+    # into the host's rules file (``CLAUDE.md``). Hosts whose rules file must
+    # not be mutated by an installer set this False and carry identity another
+    # way (e.g. a dedicated instructions file).
+    writes_rules_pin_line: bool = True
 
     @abstractmethod
     def detect(self, directory: Path) -> bool:
