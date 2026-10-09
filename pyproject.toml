@@ -33,7 +33,7 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "mcp>=1.0.0",
+    "mcp>=1.0.0,<2",  # mcp 2.x renamed FastMCP; server.py is v1 code
     "pydantic>=2.0",
 ]
 
@@ -130,6 +130,7 @@ include = [
     "src/trace_mcp/py.typed",
     "src/trace_mcp/adapters/claude_code/assets/**",
     "src/trace_mcp/adapters/opencode/assets/**",
+    "src/trace_mcp/adapters/pi/assets/**",
     # Packaged JSON Schema backing `trace-mcp validate` (byte-identical to the
     # top-level schemas/trace-v0.4.json; both written by scripts/generate_schema.py).
     "src/trace_mcp/schemas/**",

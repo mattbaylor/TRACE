@@ -17,11 +17,13 @@ from trace_mcp.adapters.base import Adapter
 from trace_mcp.adapters.claude_code import ClaudeCodeAdapter
 from trace_mcp.adapters.codex import CodexAdapter
 from trace_mcp.adapters.opencode import OpenCodeAdapter
+from trace_mcp.adapters.pi import PiAdapter
 
 # First match wins in auto-detection.
 _REGISTRY: list[Adapter] = [
     ClaudeCodeAdapter(),
     OpenCodeAdapter(),
+    PiAdapter(),
     CodexAdapter(),
 ]
 

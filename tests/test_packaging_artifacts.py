@@ -125,6 +125,19 @@ class TestWheelContainsRequiredFiles:
         missing = [a for a in expected if a not in members]
         assert not missing, f"OpenCode adapter assets missing from the wheel: {missing}"
 
+
+    def test_wheel_contains_pi_adapter_assets(self, built_dist: dict[str, Path]) -> None:
+        """The pi adapter copies these at runtime (extension + block); a wheel
+        without them installs no extension and fails validate."""
+        members = get_wheel_members(built_dist["wheel"])
+        oc_dir = TRACE_ROOT / "src" / "trace_mcp" / "adapters" / "pi" / "assets"
+        expected = sorted(
+            str(p.relative_to(TRACE_ROOT / "src")) for p in oc_dir.rglob("*") if p.is_file()
+        )
+        assert expected, f"no pi assets found under {oc_dir}"
+        missing = [a for a in expected if a not in members]
+        assert not missing, f"pi adapter assets missing from the wheel: {missing}"
+
     def test_wheel_contains_packaged_schema(self, built_dist: dict[str, Path]) -> None:
         """`trace-mcp validate` loads the schema as package data; a wheel
         without it makes the subcommand crash on installed packages."""
